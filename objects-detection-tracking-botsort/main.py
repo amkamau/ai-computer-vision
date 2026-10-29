@@ -12,7 +12,7 @@ model.to(device)
 print("Using:", device)
 
 # Load videos source
-vid_src = "../media/sample1.mp4"
+vid_src = ["rtsp://guest:Guest123@192.168.0.80:554/Streaming/Channels/101/","../media/sample1.mp4"]
 
 is_tracking = True
 is_plot = True
@@ -22,6 +22,7 @@ current_tracks = ()
 
 unique_track_ids = set()
 track_start_times = {}
+
 
 
 def mouse_callback(event, x, y, flags, param):
@@ -40,6 +41,7 @@ def mouse_callback(event, x, y, flags, param):
                 return
             
 
+
 def update_current_tracks(result):
     global current_tracks    
     if result.boxes.id is None:
@@ -52,6 +54,7 @@ def update_current_tracks(result):
     current_tracks = (boxes, track_ids, classes, confidences)
 
 
+
 def draw_selected_object(frame):
     if current_tracks is None or selected_id is None:
         return
@@ -61,7 +64,6 @@ def draw_selected_object(frame):
     for box, track_id, cls, conf in zip(boxes, track_ids, classes, confidences):
         if track_id == selected_id:
             x1, y1, x2, y2 = map(int, box)
-
             # Highlight bounding box in red, with a thicker border
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 4)
             # Display selected object information
@@ -99,17 +101,10 @@ def join_frame(frame, fps, inference_ms):
         name = model.names[int(classes[selected])]
         conf = confs[selected]
         duration = time.time() - track_start_times.get(selected_id, time.time())
-        selected_text = f"ID: {selected_id} | {name} | Conf: {conf:.2f} | Center: ({cx}, {cy}) | Size: {size}px | Duration: {duration:.1f}s"
+        selected_text = f"ID: {selected_id} | {name} | Conf: {conf:.2f} ---- [ Center: ({cx}, {cy}) | Size: {size}px | Duration: {duration:.1f}s ]"
     else:
         selected_text = f"ID: {selected_id} | Not visible" if selected_id is not None else "No object selected"
 
-    # Panel text
-    lines = [
-        f"FPS: {fps:.1f} | Inference: {inference_ms:.1f} ms",
-        f"Detections: {len(ids)} | Unique tracks: {len(unique_track_ids)} | Avg confidence: {avg_conf:.2f}",
-        f"Classes: {class_text}",
-        selected_text
-    ]
 
     cv2.putText(panel, f"FPS : {fps:.1f}", (15, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 255, 100), 1, cv2.LINE_AA)
     cv2.putText(panel, f"*  Inference : {inference_ms:.1f} ms", (150, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1, cv2.LINE_AA)
@@ -126,9 +121,9 @@ def join_frame(frame, fps, inference_ms):
 
 def main(args):
 
-    cap = cv2.VideoCapture(vid_src) 
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    print("Video FPS:", fps)
+    cap = cv2.VideoCapture(vid_src[1])
+    source_fps = cap.get(cv2.CAP_PROP_FPS)
+    print(source_fps)
     prev_time = time.time()
 
 
@@ -144,15 +139,13 @@ def main(args):
         if not ret: 
             break
 
-        start = time.perf_counter()
-
         frame = cv2.resize(frame, (1280, 720))
-        
+
+        start = time.perf_counter()        
         results = model.track(frame, tracker="botsort.yaml", persist=True,verbose=False)
         inference_ms = (time.perf_counter() - start) * 1000
 
         update_current_tracks(results[0])
-
         if current_tracks is not None:
             for track_id in current_tracks[1]:
                 track_id = int(track_id)
@@ -168,6 +161,7 @@ def main(args):
 
         frame = join_frame(frame, fps, inference_ms)
         cv2.imshow(window_name, frame)
+        print(fps)
 
         if cv2.waitKey(1) & 0xFF == ord('q'): break  #click q to stop capturing
 
